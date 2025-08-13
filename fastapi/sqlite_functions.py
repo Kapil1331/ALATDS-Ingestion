@@ -51,6 +51,29 @@ def create_tables():
     )
     """)
 
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS all_datas_f_logs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        logtype TEXT,
+        method TEXT,
+        path TEXT,
+        body TEXT,
+        single_q TEXT,
+        double_q TEXT,
+        dashes TEXT,
+        braces TEXT,
+        spaces TEXT,
+        percentages TEXT,
+        semicolons TEXT,
+        angle_brackets TEXT,
+        special_chars TEXT,
+        path_length TEXT,
+        body_length TEXT,
+        badwords_count TEXT,
+        class TEXT
+    )
+    """)
+    
     conn.commit()
     conn.close()
 
@@ -109,7 +132,6 @@ def insert_logon_log(log_doc: dict):
     conn.commit()
     conn.close()
 
-
 # Insert in bulks
 def insert_device_log_bulk(logs: list[dict]):
     conn = get_connection()
@@ -140,6 +162,43 @@ def insert_logon_log_bulk(logs: list[dict]):
         INSERT INTO logon_logs (session_id, date, time, user, pc, activity)
         VALUES (?, ?, ?, ?, ?, ?)
     """, [(log["session_id"], log["date"], log["time"], log["user"], log["pc"], log["activity"]) for log in logs])
+    conn.commit()
+    conn.close()
+
+
+def insert_all_datas_f_bulk(logs: list[dict]):
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.executemany("""
+        INSERT INTO all_datas_f_logs (
+            logtype, method, path, body,
+            single_q, double_q, dashes, braces, spaces,
+            percentages, semicolons, angle_brackets, special_chars,
+            path_length, body_length, badwords_count, class
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    """, [
+        (
+            log["logtype"],
+            log["method"],
+            log["path"],
+            log["body"],
+            log["single_q"],
+            log["double_q"],
+            log["dashes"],
+            log["braces"],
+            log["spaces"],
+            log["percentages"],
+            log["semicolons"],
+            log["angle_brackets"],
+            log["special_chars"],
+            log["path_length"],
+            log["body_length"],
+            log["badwords_count"],
+            log["class"]
+        )
+        for log in logs
+    ])
     conn.commit()
     conn.close()
 

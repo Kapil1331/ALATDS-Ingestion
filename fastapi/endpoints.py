@@ -1,11 +1,9 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import JSONResponse
 from sqlite_functions import create_tables
-from log_handlers import handle_device_log, handle_http_log, handle_logon_log 
+from log_handlers import handle_device_log, handle_http_log, handle_logon_log, handle_all_datas_f_log
 
 app = FastAPI()
-
-# Functions
 
 # API endpoints
 @app.on_event("startup")
@@ -31,6 +29,8 @@ async def ingest_log(payload: dict):
             handle_http_log(payload)
         elif logtype == "logon":
             handle_logon_log(payload)
+        elif logtype == "all_datas_f":
+            handle_all_datas_f_log(payload)
         else:
             raise HTTPException(status_code=400, detail=f"Invalid logtype '{logtype}'")
 
