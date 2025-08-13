@@ -1,5 +1,5 @@
 from sqlite_functions import insert_device_log, insert_http_log, insert_logon_log
-from sqlite_functions import insert_device_log_bulk, insert_http_log_bulk, insert_logon_log_bulk, insert_all_datas_f_bulk
+from sqlite_functions import insert_device_log_bulk, insert_http_log_bulk, insert_logon_log_bulk, insert_all_datas_f_bulk, insert_netflow_day_02_bulk, insert_wls_day_02_bulk
 
 BATCH_SIZE = 10
 
@@ -7,11 +7,15 @@ device_log_count = 0
 http_log_count = 0
 logon_log_count = 0
 all_datas_f_log_count = 0
+netflow_day_02_log_count = 0
+wls_day_02_log_count = 0
 
 device_log_buffer = []
 http_log_buffer = []
 logon_log_buffer = []
 all_datas_f_log_buffer = []
+netflow_day_02_log_buffer = []
+wls_day_02_log_buffer = []
 
 def handle_device_log(row: dict):
     global device_log_count
@@ -57,3 +61,27 @@ def handle_all_datas_f_log(row: dict):
         all_datas_f_log_count = 0
         print("All Datas F logs : Batch reset")
         all_datas_f_log_buffer.clear()
+
+def handle_netflow_day_02_log(row: dict):
+    global netflow_day_02_log_count
+    netflow_day_02_log_count += 1
+    netflow_day_02_log_buffer.append(row)
+    if(netflow_day_02_log_count == BATCH_SIZE):
+        # send to ml model
+        insert_netflow_day_02_bulk(netflow_day_02_log_buffer)
+        netflow_day_02_log_count = 0
+        print("Netflow Day 02 logs : Batch reset")
+        netflow_day_02_log_buffer.clear()
+
+
+def handle_wls_day_02_log(row: dict):
+    global wls_day_02_log_count
+    wls_day_02_log_count += 1
+    wls_day_02_log_buffer.append(row)
+    if(wls_day_02_log_count == BATCH_SIZE):
+        # send to ml model
+        print(wls_day_02_log_buffer)
+        insert_wls_day_02_bulk(wls_day_02_log_buffer)
+        wls_day_02_log_count = 0
+        print("WLS Day 02 logs : Batch reset")
+        wls_day_02_log_buffer.clear()

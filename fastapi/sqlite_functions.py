@@ -74,6 +74,43 @@ def create_tables():
     )
     """)
     
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS "netflow_day-02" (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        logtype TEXT,
+        Time TEXT,
+        Duration TEXT,
+        SrcDevice TEXT,
+        DstDevice TEXT,
+        Protocol TEXT,
+        SrcPort TEXT,
+        DstPort TEXT,
+        SrcPackets TEXT,
+        DstPackets TEXT,
+        SrcBytes TEXT,
+        DstBytes TEXT,
+        date TEXT
+    )
+    """)
+
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS "wls_day-02" (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        logtype TEXT,
+        UserName TEXT,
+        EventID INTEGER,
+        LogHost TEXT,
+        LogonID TEXT,
+        DomainName TEXT,
+        LogonTypeDescription TEXT,
+        Source TEXT,
+        AuthenticationPackage TEXT,
+        Time INTEGER,
+        LogonType INTEGER,
+        date TEXT
+    )
+    """)
+
     conn.commit()
     conn.close()
 
@@ -202,6 +239,68 @@ def insert_all_datas_f_bulk(logs: list[dict]):
     conn.commit()
     conn.close()
 
+
+def insert_netflow_day_02_bulk(logs: list[dict]):
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.executemany("""
+        INSERT INTO "netflow_day-02" (
+            logtype, Time, Duration, SrcDevice, DstDevice, Protocol,
+            SrcPort, DstPort, SrcPackets, DstPackets, SrcBytes, DstBytes,
+            date
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    """, [
+        (
+            log["logtype"],
+            log["Time"],
+            log["Duration"],
+            log["SrcDevice"],
+            log["DstDevice"],
+            log["Protocol"],
+            log["SrcPort"],
+            log["DstPort"],
+            log["SrcPackets"],
+            log["DstPackets"],
+            log["SrcBytes"],
+            log["DstBytes"],
+            log["date"],
+        )
+        for log in logs
+    ])
+    conn.commit()
+    conn.close()
+
+
+def insert_wls_day_02_bulk(logs: list[dict]):
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.executemany("""
+        INSERT INTO "wls_day-02" (
+            logtype, UserName, EventID, LogHost, LogonID, DomainName,
+            LogonTypeDescription, Source, AuthenticationPackage,
+            Time, LogonType, date
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    """, [
+        (
+            log["logtype"],
+            log["UserName"],
+            log["EventID"],
+            log["LogHost"],
+            log["LogonID"],
+            log["DomainName"],
+            log["LogonTypeDescription"],
+            log["Source"],
+            log["AuthenticationPackage"],
+            log["Time"],
+            log["LogonType"],
+            log["date"],
+        )
+        for log in logs
+    ])
+    conn.commit()
+    conn.close()
 
 # Fetch the logs from the db
 def fetch_logs(logtype: str, limit: Optional[int] = None) -> pd.DataFrame:
