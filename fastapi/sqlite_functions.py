@@ -110,6 +110,40 @@ def insert_logon_log(log_doc: dict):
     conn.close()
 
 
+# Insert in bulks
+def insert_device_log_bulk(logs: list[dict]):
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.executemany("""
+        INSERT INTO device_logs (session_id, date, time, user, pc, activity)
+        VALUES (?, ?, ?, ?, ?, ?)
+    """, [(log["session_id"], log["date"], log["time"], log["user"], log["pc"], log["activity"]) for log in logs])
+    conn.commit()
+    conn.close()
+
+
+def insert_http_log_bulk(logs: list[dict]):
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.executemany("""
+        INSERT INTO http_logs (session_id, date, time, user, pc, url)
+        VALUES (?, ?, ?, ?, ?, ?)
+    """, [(log["session_id"], log["date"], log["time"], log["user"], log["pc"], log["url"]) for log in logs])
+    conn.commit()
+    conn.close()
+
+
+def insert_logon_log_bulk(logs: list[dict]):
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.executemany("""
+        INSERT INTO logon_logs (session_id, date, time, user, pc, activity)
+        VALUES (?, ?, ?, ?, ?, ?)
+    """, [(log["session_id"], log["date"], log["time"], log["user"], log["pc"], log["activity"]) for log in logs])
+    conn.commit()
+    conn.close()
+
+
 # Fetch the logs from the db
 def fetch_logs(logtype: str, limit: Optional[int] = None) -> pd.DataFrame:
     conn = get_connection()
