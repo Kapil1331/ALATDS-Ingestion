@@ -5,7 +5,9 @@ from itertools import zip_longest
 import json, datetime
 
 CSV_DIR = os.path.join(os.path.dirname(__file__), 'CSV')
-API_URL = 'http://10.91.183.216:8000/log/ingest/'
+
+API_URL = 'http://127.0.0.1:8000/log/ingest/'
+API_URL = 'http://10.1.232.5:8000/log/ingest/'
 
 SCHEMAS = {
     'device': ['session_id', 'datetime', 'user', 'pc', 'activity'],

@@ -139,3 +139,35 @@ def fetch_logs(logtype: str, limit: Optional[int] = None) -> pd.DataFrame:
     
     df = pd.DataFrame([dict(row) for row in rows])
     return df
+
+
+def get_log_src():
+    with get_connection() as conn:
+        # cursor = conn.cursor()
+
+        # cursor.execute("SELECT COUNT(*) FROM logon_logs")
+        # logon_count = cursor.fetchone()[0]
+
+        # cursor.execute("SELECT COUNT(*) FROM http_logs")
+        # http_count = cursor.fetchone()[0]
+
+        # cursor.execute("SELECT COUNT(*) FROM device_logs")
+        # device_count = cursor.fetchone()[0]
+
+        # cursor.execute("SELECT COUNT(*) FROM wsl_logs")
+        # wsl_count = cursor.fetchone()[0]
+
+        logon_count = 5
+        http_count = 10
+        device_count = 15
+        wsl_count = 20
+
+    return {
+        "src_dist": {
+            "logon_count": logon_count,
+            "http_count": http_count,
+            "device_count": device_count,
+            "wsl_count": wsl_count,
+            "total": logon_count + http_count + device_count + wsl_count
+        }
+    }
