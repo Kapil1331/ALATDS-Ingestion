@@ -1,6 +1,6 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import JSONResponse
-from sqlite_functions import create_tables
+from sqlite_functions import create_tables, create_result_tables
 from log_handlers import handle_device_log, handle_http_log, handle_logon_log, handle_all_datas_f_log, handle_netflow_day_02_log, handle_wls_day_02_log
 
 app = FastAPI()
@@ -9,6 +9,7 @@ app = FastAPI()
 @app.on_event("startup")
 async def startup_event():
     create_tables()
+    create_result_tables()
 
 @app.get("/")
 async def root():

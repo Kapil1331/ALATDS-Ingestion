@@ -1,0 +1,8 @@
+{
+    "sql_injection": "('|\\\"|--|;|\\b(union|select|insert|update|delete|drop|alter|exec|sleep|benchmark)\\b)",
+    "xss": "(<script|alert\\(|onerror=|onload=|<img|<svg|\\bjavascript:|\\bdata:text/html)",
+    "path_traversal": "(\\.\\./|\\.\\\\|~/|\\\\\\.\\.|%2e%2e%2f|%2e%2e%5c|%252e%252e%252f|%252e%252e%255c|/etc/passwd|/proc/self/environ|/proc/version|/windows/(win\\.ini|system\\.ini)|c:\\\\windows\\\\(win\\.ini|system\\.ini)|c%3a%5cwindows%5c(win\\.ini|system\\.ini)|c%3a%2fwindows%2f(win\\.ini|system\\.ini))",
+    "command_injection": "(\\b(powershell|cmd\\.exe|wget|curl|bash|sh|nc|netcat)\\b|(\\||&&|`|\\\\x[0-9a-fA-F]{2}))",
+    "ssrf": "(\\b(localhost|127\\.0\\.0\\.1|0\\.0\\.0\\.0|169\\.254\\.[0-9]{1,3}\\.[0-9]{1,3}|192\\.168\\.[0-9]{1,3}\\.[0-9]{1,3}|10\\.[0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3}|172\\.(1[6-9]|2[0-9]|3[0-1])\\.[0-9]{1,3}\\.[0-9]{1,3})\\b|file://|ftp://|\\\\[0-9a-zA-Z]+|%5c[0-9a-zA-Z]+)",
+    "obfuscation": "(\\\\x[0-9a-fA-F]{2}|%[0-9a-fA-F]{2}|%u[0-9a-fA-F]{4}|&#x[0-9a-fA-F]{2};|\\\\[0-9]{3})"
+}

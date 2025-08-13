@@ -1,14 +1,63 @@
 import sqlite3
 import pandas as pd
 from typing import Optional
+import json
 
 DB_FILE = "logs.db"
+RESULTS_FILE = "results.db"
 
 def get_connection():
     conn = sqlite3.connect(DB_FILE)
     conn.row_factory = sqlite3.Row  # For dict-like access
     return conn
 
+def get_results_connection():
+    conn = sqlite3.connect(RESULTS_FILE)
+    conn.row_factory = sqlite3.Row  # For dict-like access
+    return conn
+
+def create_result_tables():
+    conn = get_results_connection()
+    cursor = conn.cursor()
+
+    # WSL predictions table
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS wsl_predictions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        log_type TEXT,
+        log_id TEXT,
+        is_threat INTEGER,
+        threat_level TEXT,
+        log JSON
+    )
+    """)
+    
+    # Windows Event Log predictions table
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS win_event_predictions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        log_type TEXT,
+        log_id TEXT,
+        is_threat INTEGER,
+        threat_level TEXT,
+        log JSON
+    )
+    """)
+    
+    # Network Event predictions table
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS network_predictions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        log_type TEXT,
+        log_id TEXT,
+        is_threat INTEGER,
+        threat_level TEXT,
+        log JSON
+    )
+    """)
+
+    conn.commit()
+    conn.close()
 
 # Create tables on INIT
 def create_tables():
@@ -278,8 +327,8 @@ def insert_wls_day_02_bulk(logs: list[dict]):
     cursor.executemany("""
         INSERT INTO "wls_day-02" (
             logtype, UserName, EventID, LogHost, LogonID, DomainName,
-            LogonTypeDescription, Source, AuthenticationPackage,
-            Time, LogonType, date
+            ParentProcessName, ParentProcessID, ProcessName,
+            Time, ProcessID, date
         )
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """, [
@@ -290,17 +339,96 @@ def insert_wls_day_02_bulk(logs: list[dict]):
             log["LogHost"],
             log["LogonID"],
             log["DomainName"],
-            log["LogonTypeDescription"],
-            log["Source"],
-            log["AuthenticationPackage"],
+            log["ParentProcessName"],
+            log["ParentProcessID"],
+            log["ProcessName"],
             log["Time"],
-            log["LogonType"],
+            log["ProcessID"],
             log["date"],
         )
         for log in logs
     ])
     conn.commit()
     conn.close()
+
+
+def insert_wsl_predictions_bulk(logs: list[dict]):
+    conn = get_results_connection()  # Use results database instead of logs database
+    cursor = conn.cursor()
+    try:
+        cursor.executemany("""
+            INSERT INTO wsl_predictions (
+                log_type, log_id, is_threat, threat_level, log
+            )
+            VALUES (?, ?, ?, ?, ?)
+        """, [
+            (
+                log["log_type"],
+                log["log_id"],
+                1 if log["is_threat"] else 0,  # Convert boolean to integer
+                log.get("threat_level", "unknown"),  # Get threat_level with default
+                json.dumps(log),  # Convert dict to JSON string
+            )
+            for log in logs
+        ])
+        conn.commit()
+    except Exception as e:
+        print(f"Error inserting predictions: {str(e)}")
+        raise
+    finally:
+        conn.close()
+
+def insert_win_event_predictions_bulk(logs: list[dict]):
+    conn = get_results_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.executemany("""
+            INSERT INTO win_event_predictions (
+                log_type, log_id, is_threat, threat_level, log
+            )
+            VALUES (?, ?, ?, ?, ?)
+        """, [
+            (
+                log["log_type"],
+                log["log_id"],
+                1 if log["is_threat"] else 0,  # Convert boolean to integer
+                log.get("threat_level", "unknown"),  # Get threat_level with default
+                json.dumps(log),  # Convert dict to JSON string
+            )
+            for log in logs
+        ])
+        conn.commit()
+    except Exception as e:
+        print(f"Error inserting win event predictions: {str(e)}")
+        raise
+    finally:
+        conn.close()
+
+def insert_network_predictions_bulk(logs: list[dict]):
+    conn = get_results_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.executemany("""
+            INSERT INTO network_predictions (
+                log_type, log_id, is_threat, threat_level, log
+            )
+            VALUES (?, ?, ?, ?, ?)
+        """, [
+            (
+                log["log_type"],
+                log["log_id"],
+                1 if log["is_threat"] else 0,  # Convert boolean to integer
+                log.get("threat_level", "unknown"),  # Get threat_level with default
+                json.dumps(log),  # Convert dict to JSON string
+            )
+            for log in logs
+        ])
+        conn.commit()
+    except Exception as e:
+        print(f"Error inserting network predictions: {str(e)}")
+        raise
+    finally:
+        conn.close()
 
 # Fetch the logs from the db
 def fetch_logs(logtype: str, limit: Optional[int] = None) -> pd.DataFrame:
