@@ -16,20 +16,21 @@ async def startup_event():
 async def root():
     return {"message": "Log Service is running"}
 
-@app.post("/log/ingest/{logtype}")
-async def ingest_log(logtype: str, payload: dict):
+@app.post("/log/ingest/")
+async def ingest_log(payload: dict):  
+    print(payload)
     try:
-        row = payload.get("row")
-        if not row:
-            raise HTTPException(status_code=400, detail="Missing 'row' in request body")
+
+        logtype = payload.get("logtype")
+
 
         # Handle different log types explicitly
         if logtype == "device":
-            handle_device_log(row)
+            handle_device_log(payload)
         elif logtype == "http":
-            handle_http_log(row)
+            handle_http_log(payload)
         elif logtype == "logon":
-            handle_logon_log(row)
+            handle_logon_log(payload)
         else:
             raise HTTPException(status_code=400, detail=f"Invalid logtype '{logtype}'")
 

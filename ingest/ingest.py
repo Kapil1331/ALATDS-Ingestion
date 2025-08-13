@@ -2,9 +2,10 @@ import os
 import csv
 import requests, time
 from itertools import zip_longest
+import json
 
 CSV_DIR = os.path.join(os.path.dirname(__file__), 'CSV')
-API_URL = 'http://10.91.183.216:8000/log/ingest/{logtype}'
+API_URL = 'http://127.0.0.1:8000/log/ingest/'  # Removed {logtype} from URL
 
 SCHEMAS = {
     'device': ['session_id', 'datetime', 'user', 'pc', 'activity'],
@@ -46,16 +47,16 @@ def send_data(filename, row):
         # Remove the original datetime to avoid duplication
         data.pop('datetime', None)
 
-    url = API_URL.format(logtype=filename)
     try:
+        print(f"📤 Preparing to send data to {API_URL}:")
+        print(json.dumps(data, indent=2))  # Pretty-print the JSON data
         
         # hitting endpoint
-
-        response = requests.post(url, json=data)
+        response = requests.post(API_URL, json=data)
         response.raise_for_status()
-        print(f"✅ Sent row to {url}: {data}")
+        print(f"✅ Sent row to {API_URL}: {data}")
     except Exception as e:
-        print(f"❌ Error sending row to {url}: {e}")
+        print(f"❌ Error sending row to {API_URL}: {e}")
 
 def ingest_round_robin():
     csv_files = [os.path.join(CSV_DIR, f) for f in os.listdir(CSV_DIR) if f.endswith('.csv')]
