@@ -27,44 +27,84 @@ total_all_datas_f_log_count = 0
 model_all_datas_f_log_buffer = []
 
 
-emp_data_classifier = emp_data_classifier()
+# emp_data_classifier = emp_data_classifier()
 wsl_classifier = wsl_classifier()
+
 if wsl_classifier.model is None:
     wsl_classifier.train()
+
+def check_threshold_for_emp(device_log_count, http_log_count, logon_log_count):
+    print("111111111111111111111111111111", device_log_count, http_log_count, logon_log_count)
+    if(device_log_count == BATCH_SIZE and
+       http_log_count == BATCH_SIZE and
+       logon_log_count == BATCH_SIZE):
+        # call ml function
+        print("OOOOOOOOOOOOOOOOOOOOOOOOOO")
+        # Convert log buffers to DataFrames
+        logon_df = pd.DataFrame(logon_log_buffer)
+        device_df = pd.DataFrame(device_log_buffer)
+        http_df = pd.DataFrame(http_log_buffer)
         
+        emp_data_obj = emp_data_classifier(logon_df, device_df, http_df)
+        result, correlation = emp_data_obj.analyze()
+        # returned from ml function
+        print(result.head())
+        print(correlation.head())
+        device_log_count = 0
+        http_log_count = 0
+        logon_log_count = 0
+        device_log_buffer.clear()
+        http_log_buffer.clear()
+        logon_log_buffer.clear()
+
+    return False
+
+
+
 def handle_device_log(row: dict):
     global device_log_count
+    global http_log_count
+    global logon_log_count
     device_log_count += 1
     device_log_buffer.append(row)
 
     if(device_log_count == BATCH_SIZE):
-        # send to ml model 
+        # send to ml model
+        check_threshold_for_emp(device_log_count, http_log_count, logon_log_count)
+        # return from ml
         insert_device_log_bulk(device_log_buffer)
-        device_log_count = 0
         print("Device logs : Batch reset")
-        device_log_buffer.clear()
+        # device_log_buffer.clear()
 
 def handle_http_log(row: dict):
+    global device_log_count
     global http_log_count
+    global logon_log_count
     http_log_count += 1
     http_log_buffer.append(row)
     if(http_log_count == BATCH_SIZE):
         # send to ml model
+        check_threshold_for_emp(device_log_count, http_log_count, logon_log_count)
+        # return from ml
         insert_http_log_bulk(http_log_buffer)
-        http_log_count = 0
+        # http_log_count = 0
         print("Http logs : Batch reset")
-        http_log_buffer.clear()
+        # http_log_buffer.clear()
 
 def handle_logon_log(row: dict):
+    global device_log_count
+    global http_log_count
     global logon_log_count
     logon_log_count += 1
     logon_log_buffer.append(row)
     if(logon_log_count == BATCH_SIZE):
         # send to ml model
+        check_threshold_for_emp(device_log_count, http_log_count, logon_log_count)
+        # return from ml
         insert_logon_log_bulk(logon_log_buffer)
-        logon_log_count = 0
+        # logon_log_count = 0
         print("Logon logs : Batch reset")
-        logon_log_buffer.clear()
+        # logon_log_buffer.clear()
 
 def handle_all_datas_f_log(row: dict):
     global all_datas_f_log_count
@@ -84,11 +124,11 @@ def handle_all_datas_f_log(row: dict):
     if(all_datas_f_log_count == BATCH_SIZE):
         try:
             # send to ml model
-            print(pd.DataFrame(model_all_datas_f_log_buffer))
-            print("going to predic in some time !!!!!!!!!!")
+            # print(pd.DataFrame(model_all_datas_f_log_buffer))
+            # print("going to predic in some time !!!!!!!!!!")
             results = wsl_classifier.predict(pd.DataFrame(model_all_datas_f_log_buffer))
-            print("sending the predictions !!!!!!!!!!")
-            print(results)
+            # print("sending the predictions !!!!!!!!!!")
+            # print(results)
             
             # Insert predictions first
             insert_wsl_predictions_bulk(results.to_dict(orient='records'))

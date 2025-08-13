@@ -207,9 +207,9 @@ class ThreatEngine:
                 elif isinstance(log_data, list):
                     log_data = log_data[0]
                 
-                print(f"\nProcessing log_type: {log_type}")
-                print(f"Log data structure: {type(log_data)}")
-                print(f"Log data content: {log_data}")
+                # print(f"\nProcessing log_type: {log_type}")
+                # print(f"Log data structure: {type(log_data)}")
+                # print(f"Log data content: {log_data}")
                 
                 # Route to appropriate threat level function
                 if any(x in log_type for x in ['logon', 'device', 'http']):

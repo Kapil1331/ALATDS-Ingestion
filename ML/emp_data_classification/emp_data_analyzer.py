@@ -12,6 +12,8 @@ from datetime import datetime
 import pandas as pd
 import numpy as np
 import glob
+from ..cr_engine.correlation_engine import CorrelationEngine
+from ..cr_engine.threat_engine import ThreatEngine
 
 class emp_data_classifier:
     def __init__(self, logon_df=None, device_df=None, http_df=None, ldap_dir="Dataset 1/LDAP"):
@@ -48,6 +50,7 @@ class emp_data_classifier:
         self.http = None
         self.user_last_ldap = None
         self.ldap_admins = None
+        print("In init !!!!!!!!!!!")
         
     def load_csv(self, path: Path, **kwargs) -> pd.DataFrame:
         """Helper to load CSV files with error handling."""
@@ -629,8 +632,14 @@ class emp_data_classifier:
             output_df = pd.DataFrame(columns=[
                 'log_type', 'log_id', 'is_threat', 'log'
             ])
+
+        print("Reached output!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+        corr_engine = CorrelationEngine()
+        threat_engine = ThreatEngine()
+        correlated_df = corr_engine.correlate(output_df)
+        output_df = threat_engine.assign_threat_level(output_df)
         
-        return output_df
+        return output_df,correlated_df
 
 # ----------------------
 # Main execution

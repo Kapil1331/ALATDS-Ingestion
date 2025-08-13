@@ -18,7 +18,7 @@ class wsl_classifier:
     DEFAULT_PREDICT_FILE = "2bad_reqff.csv"
 
     def __init__(self):
-        print("in init !!!!!!!!!!!!")
+        # print("in init !!!!!!!!!!!!")
         if not os.path.exists(self.PATTERNS_FILE):
             raise FileNotFoundError(f"Attack patterns file {self.PATTERNS_FILE} not found!")
         with open(self.PATTERNS_FILE, "r") as f:
@@ -126,4 +126,4 @@ if __name__ == "__main__":
 
     # Predict on default file (2bad_reqff.csv)
     result_df = wsl_model.predict(pd.read_csv("Web Server Logs/2bad_reqff.csv"))
-    print(result_df.head())
+    # print(result_df.head())
