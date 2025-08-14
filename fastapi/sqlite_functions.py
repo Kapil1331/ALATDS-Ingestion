@@ -589,3 +589,70 @@ def fetch_logs(logtype: str, limit: Optional[int] = None) -> pd.DataFrame:
     
     df = pd.DataFrame([dict(row) for row in rows])
     return df
+
+
+def fetch_results(logtype: str, limit: Optional[int] = None) -> pd.DataFrame:
+    conn = get_results_connection()
+    cursor = conn.cursor()
+    
+    table_map = {
+        "wsl_predictions": "wsl_predictions",
+        # "win_event_predictions": "win_event_predictions",
+        # "network_predictions": "network_predictions",
+        "emp_analysis_results": "emp_analysis_results",
+        "sqlite_sequence": "sqlite_sequence",
+        # "emp_activity_correlations": "emp_activity_correlations"
+    }
+    
+    table = table_map.get(logtype)
+    if not table:
+        raise ValueError(f"Invalid logtype '{logtype}'")
+
+    if table != "sqlite_sequence":
+        query = f"SELECT * FROM {table} ORDER BY id DESC"
+    else:
+        query = f"SELECT * FROM {table} ORDER BY name"
+    if limit is not None:
+        query += f" LIMIT {limit}"
+
+    cursor.execute(query)
+    rows = cursor.fetchall()
+    conn.close()
+    
+    if not rows:
+        return pd.DataFrame()
+    
+    df = pd.DataFrame([dict(row) for row in rows])
+    return df
+
+
+def threat_distribution(logtype: str) -> pd.DataFrame:
+    conn = get_results_connection()
+    cursor = conn.cursor()
+    
+    table_map = {
+        "wsl_predictions": "wsl_predictions",
+        "win_event_predictions": "win_event_predictions",
+        "network_predictions": "network_predictions"
+    }
+    
+    table = table_map.get(logtype)
+    if not table:
+        raise ValueError(f"Invalid logtype '{logtype}'")
+
+    query = f"""
+    SELECT threat_level, COUNT(*) as count
+    FROM {table}
+    GROUP BY threat_level
+    """
+    
+    cursor.execute(query)
+    rows = cursor.fetchall()
+    conn.close()
+    
+    if not rows:
+        return pd.DataFrame(columns=["threat_level", "count"])
+    
+    df = pd.DataFrame(rows, columns=["threat_level", "count"])
+    return df
+

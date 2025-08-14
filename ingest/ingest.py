@@ -68,7 +68,7 @@ def ingest_round_robin():
             filename, row = row_data
             send_data(filename, row)
     
-            time.sleep(1)
+            time.sleep(0.1)
 
 if __name__ == "__main__":
     ingest_round_robin()
