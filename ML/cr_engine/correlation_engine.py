@@ -35,7 +35,7 @@ class CorrelationEngine:
             return self.time_window
 
         median_diff = (diffs.quantile(0.75) - diffs.quantile(0.25))  # seconds
-        optimal_window_min = max(30, min(60, median_diff / 60))
+        optimal_window_min = max(10, min(60, median_diff / 60))
         self.time_window = optimal_window_min
         return self.time_window
 
@@ -53,6 +53,8 @@ class CorrelationEngine:
 
         window_ns = pd.Timedelta(minutes=self.time_window).value
         results = []
+
+        print("inside correlation engine----------------------------------------------------")
 
         for user, group in anomalies_df.groupby('user'):
             group = group.sort_values('datetime')

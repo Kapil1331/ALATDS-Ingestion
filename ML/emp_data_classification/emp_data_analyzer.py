@@ -17,13 +17,7 @@ from ..cr_engine.threat_engine import ThreatEngine
 
 class emp_data_classifier:
     def __init__(self, logon_df=None, device_df=None, http_df=None, ldap_dir="Dataset 1/LDAP"):
-        """Initialize with input DataFrames
-        Args:
-            logon_df: DataFrame containing logon events
-            device_df: DataFrame containing device events
-            http_df: DataFrame containing HTTP events
-            ldap_dir: Path to LDAP directory (optional)
-        """
+        """Initialize with input DataFrames"""
         # Store input DataFrames
         self.logon = logon_df
         self.device = device_df
@@ -45,12 +39,8 @@ class emp_data_classifier:
         )
         
         # Data storage
-        self.logon = None
-        self.device = None
-        self.http = None
         self.user_last_ldap = None
         self.ldap_admins = None
-        print("In init !!!!!!!!!!!")
         
     def load_csv(self, path: Path, **kwargs) -> pd.DataFrame:
         """Helper to load CSV files with error handling."""
@@ -125,18 +115,30 @@ class emp_data_classifier:
 
         # Process logon data
         self.logon = self.logon.copy()
-        self.logon['datetime'] = pd.to_datetime(self.logon['datetime'] if 'datetime' in self.logon.columns else self.logon['date'])
-        self.logon['log_id'] = self.logon['log_id'] if 'log_id' in self.logon.columns else self.logon['id']
+        if 'datetime' in self.logon.columns:
+            self.logon['datetime'] = pd.to_datetime(self.logon['datetime'])
+        elif 'date' in self.logon.columns and 'time' in self.logon.columns:
+            self.logon['datetime'] = pd.to_datetime(self.logon['date'] + ' ' + self.logon['time'])
+        if 'id' not in self.logon.columns:
+            self.logon['id'] = -1  # Default value for missing IDs
         
         # Process device data
         self.device = self.device.copy()
-        self.device['datetime'] = pd.to_datetime(self.device['datetime'] if 'datetime' in self.device.columns else self.device['date'])
-        self.device['log_id'] = self.device['log_id'] if 'log_id' in self.device.columns else self.device['id']
+        if 'datetime' in self.device.columns:
+            self.device['datetime'] = pd.to_datetime(self.device['datetime'])
+        elif 'date' in self.device.columns and 'time' in self.device.columns:
+            self.device['datetime'] = pd.to_datetime(self.device['date'] + ' ' + self.device['time'])
+        if 'id' not in self.device.columns:
+            self.device['id'] = -1
         
         # Process HTTP data
         self.http = self.http.copy()
-        self.http['datetime'] = pd.to_datetime(self.http['datetime'] if 'datetime' in self.http.columns else self.http['date'])
-        self.http['log_id'] = self.http['log_id'] if 'log_id' in self.http.columns else self.http['id']
+        if 'datetime' in self.http.columns:
+            self.http['datetime'] = pd.to_datetime(self.http['datetime'])
+        elif 'date' in self.http.columns and 'time' in self.http.columns:
+            self.http['datetime'] = pd.to_datetime(self.http['date'] + ' ' + self.http['time'])
+        if 'id' not in self.http.columns:
+            self.http['id'] = -1
         
         # Add common derived columns
         for df in (self.logon, self.device, self.http):
@@ -164,7 +166,7 @@ class emp_data_classifier:
         # Rule: Logoff without preceding logon
         cond = (L['activity_lc'] == 'logoff') & (L['prev_act'] != 'logon')
         if cond.any():
-            df = L.loc[cond, ['datetime', 'user', 'pc', 'id']].copy()  # Include log_id
+            df = L.loc[cond, ['datetime', 'user', 'pc', 'id']].copy()
             df['log_type'] = 'logon'
             df['anomaly_type'] = 'logoff_without_preceding_logon'
             df['detail'] = 'Logoff occurred without prior Logon'
@@ -173,7 +175,7 @@ class emp_data_classifier:
         # Rule: Consecutive logon without logoff
         cond = (L['activity_lc'] == 'logon') & (L['prev_act'] == 'logon')
         if cond.any():
-            df = L.loc[cond, ['datetime', 'user', 'pc']].copy()
+            df = L.loc[cond, ['datetime', 'user', 'pc', 'id']].copy()
             df['log_type'] = 'logon'
             df['anomaly_type'] = 'consecutive_logon_without_logoff'
             df['detail'] = 'Multiple Logon events without intervening Logoff'
@@ -182,7 +184,7 @@ class emp_data_classifier:
         # Rule: Orphaned sessions (Logon not followed by Logoff)
         cond = (L['activity_lc'] == 'logon') & (L['next_act'] != 'logoff')
         if cond.any():
-            df = L.loc[cond, ['datetime', 'user', 'pc']].copy()
+            df = L.loc[cond, ['datetime', 'user', 'pc', 'id']].copy()
             df['log_type'] = 'logon'
             df['anomaly_type'] = 'orphaned_session'
             df['detail'] = 'Logon with no following Logoff (session may be orphaned)'
@@ -194,7 +196,7 @@ class emp_data_classifier:
             ((L['minute_of_day'] < self.AFTER_HOURS_START) | 
              (L['minute_of_day'] >= self.AFTER_HOURS_END)))
         if after_mask.any():
-            df = L.loc[after_mask, ['datetime', 'user', 'pc']].copy()
+            df = L.loc[after_mask, ['datetime', 'user', 'pc', 'id']].copy()
             df['log_type'] = 'logon'
             df['anomaly_type'] = 'after_hours_logon'
             df['detail'] = 'Logon during after-hours window'
@@ -264,7 +266,7 @@ class emp_data_classifier:
                 
                 dev_mask = merged['dev_units'] > self.BASELINE_MAD_K
                 if dev_mask.any():
-                    df = merged.loc[dev_mask, ['first_logon', 'user']].copy()
+                    df = merged.loc[dev_mask, ['first_logon', 'user', 'id']].copy()
                     df = df.rename(columns={'first_logon': 'datetime'})
                     df['pc'] = None
                     df['log_type'] = 'logon'
@@ -316,7 +318,7 @@ class emp_data_classifier:
                 
                 dev_mask = merged['dev_units'] > self.BASELINE_MAD_K
                 if dev_mask.any():
-                    df = merged.loc[dev_mask, ['first_logon', 'user', 'duration_min']].copy()
+                    df = merged.loc[dev_mask, ['first_logon', 'user', 'duration_min', 'id']].copy()
                     df = df.rename(columns={'first_logon': 'datetime'})
                     df['pc'] = None
                     df['log_type'] = 'logon'
@@ -341,13 +343,13 @@ class emp_data_classifier:
         us['cutoff'] = us['last_month'].apply(self.month_to_cutoff)
         
         # Merge with logon events
-        ll = self.logon[['datetime', 'user', 'pc']].copy()
+        ll = self.logon[['datetime', 'user', 'pc', 'id']].copy()
         merged = ll.merge(us[['user', 'cutoff']], on='user', how='left')
         
         # Detect post-termination activity
         post_mask = merged['cutoff'].notna() & (merged['datetime'] >= merged['cutoff'])
         if post_mask.any():
-            df = merged.loc[post_mask, ['datetime', 'user', 'pc']].copy()
+            df = merged.loc[post_mask, ['datetime', 'user', 'pc', 'id']].copy()
             df['log_type'] = 'logon'
             df['anomaly_type'] = 'post_termination_activity'
             df['detail'] = 'Activity after last LDAP-seen month (possible post-termination)'
@@ -367,7 +369,7 @@ class emp_data_classifier:
         # Rule: Disconnect without prior connect
         cond = (D['activity_lc'] == 'disconnect') & (D['prev_act'] != 'connect')
         if cond.any():
-            df = D.loc[cond, ['datetime', 'user', 'pc', 'id']].copy()  # Include log_id
+            df = D.loc[cond, ['datetime', 'user', 'pc', 'id']].copy()
             df['log_type'] = 'device'
             df['anomaly_type'] = 'disconnect_without_prior_connect'
             df['detail'] = 'Disconnect with no prior connect'
@@ -376,7 +378,7 @@ class emp_data_classifier:
         # Rule: Connect while already connected
         cond = (D['activity_lc'] == 'connect') & (D['prev_act'] == 'connect')
         if cond.any():
-            df = D.loc[cond, ['datetime', 'user', 'pc']].copy()
+            df = D.loc[cond, ['datetime', 'user', 'pc', 'id']].copy()
             df['log_type'] = 'device'
             df['anomaly_type'] = 'consecutive_connect_without_disconnect'
             df['detail'] = 'Connect while already connected'
@@ -388,7 +390,7 @@ class emp_data_classifier:
             first_connect = connects.drop_duplicates(
                 subset=['user', 'pc'], 
                 keep='first'
-            )[['datetime', 'user', 'pc']].copy()
+            )[['datetime', 'user', 'pc', 'id']].copy()
             first_connect['log_type'] = 'device'
             first_connect['anomaly_type'] = 'first_time_device_connect'
             first_connect['detail'] = 'First observed connect for user-pc pair'
@@ -397,12 +399,13 @@ class emp_data_classifier:
         # Rule: Missing disconnects (last activity is connect)
         last_act = D.groupby(['user', 'pc'], as_index=False).agg(
             last_activity=('activity_lc', 'last'), 
-            last_dt=('datetime', 'last')
+            last_dt=('datetime', 'last'),
+            last_id=('id', 'last')
         )
         miss_mask = last_act['last_activity'] == 'connect'
         if miss_mask.any():
-            rows = last_act.loc[miss_mask, ['last_dt', 'user', 'pc']].copy()
-            rows = rows.rename(columns={'last_dt': 'datetime'})
+            rows = last_act.loc[miss_mask, ['last_dt', 'user', 'pc', 'last_id']].copy()
+            rows = rows.rename(columns={'last_dt': 'datetime', 'last_id': 'id'})
             rows['log_type'] = 'device'
             rows['anomaly_type'] = 'missing_disconnect'
             rows['detail'] = 'No disconnect after last connect'
@@ -417,7 +420,7 @@ class emp_data_classifier:
         
         cond = D['user'].isin(non_usb_users) & (D['activity_lc'] == 'connect')
         if cond.any():
-            df = D.loc[cond, ['datetime', 'user', 'pc']].copy()
+            df = D.loc[cond, ['datetime', 'user', 'pc', 'id']].copy()
             df['log_type'] = 'device'
             df['anomaly_type'] = 'nonusb_user_connect'
             df['detail'] = 'User historically non-USB performed connect'
@@ -436,7 +439,7 @@ class emp_data_classifier:
             (H['minute_of_day'] >= self.AFTER_HOURS_END)
         )
         if after_mask.any():
-            df = H.loc[after_mask, ['datetime', 'user', 'pc', 'log_id']].copy()  # Include log_id
+            df = H.loc[after_mask, ['datetime', 'user', 'pc', 'id']].copy()
             df['log_type'] = 'http'
             df['anomaly_type'] = 'after_hours_browsing'
             df['detail'] = 'HTTP during after-hours'
@@ -445,7 +448,7 @@ class emp_data_classifier:
         # Rule: Suspicious domains
         sus_mask = H['domain'].fillna('').str.contains(self.SUSPICIOUS_REGEX)
         if sus_mask.any():
-            rows = H.loc[sus_mask, ['datetime', 'user', 'pc', 'domain']].copy()
+            rows = H.loc[sus_mask, ['datetime', 'user', 'pc', 'domain', 'id']].copy()
             rows['log_type'] = 'http'
             rows['anomaly_type'] = 'suspicious_domain'
             rows['detail'] = rows['domain'].apply(
@@ -458,7 +461,7 @@ class emp_data_classifier:
         first_user_domain = H_nonnull.drop_duplicates(
             subset=['user', 'domain'], 
             keep='first'
-        )[['datetime', 'user', 'pc', 'domain']].copy()
+        )[['datetime', 'user', 'pc', 'domain', 'id']].copy()
         
         if not first_user_domain.empty and self.FIRST_TIME_DOMAIN_FLAG:
             first_user_domain['log_type'] = 'http'
@@ -480,7 +483,7 @@ class emp_data_classifier:
             )
             
             if cond_outside.any():
-                df = merged.loc[cond_outside, ['datetime', 'user', 'pc']].copy()
+                df = merged.loc[cond_outside, ['datetime', 'user', 'pc', 'id']].copy()
                 df['log_type'] = 'http'
                 df['anomaly_type'] = 'http_outside_session_window'
                 df['detail'] = 'HTTP outside logon-logoff window for that user-day'
@@ -522,13 +525,11 @@ class emp_data_classifier:
             first_shared = L_shared.drop_duplicates(
                 subset=['user', 'pc'], 
                 keep='first'
-            )[['datetime', 'user', 'pc']]
-            
-            if not first_shared.empty:
-                first_shared['log_type'] = 'logon'
-                first_shared['anomaly_type'] = 'first_time_shared_pc_access'
-                first_shared['detail'] = 'First observed access to a shared PC by user'
-                anomalies.append(first_shared)
+            )[['datetime', 'user', 'pc', 'id']].copy()
+            first_shared['log_type'] = 'logon'
+            first_shared['anomaly_type'] = 'first_time_shared_pc_access'
+            first_shared['detail'] = 'First observed access to a shared PC by user'
+            anomalies.append(first_shared)
         
         return anomalies
     
@@ -546,8 +547,7 @@ class emp_data_classifier:
             admin_first = L_admins.drop_duplicates(
                 subset=['user', 'pc'], 
                 keep='first'
-            )[['datetime', 'user', 'pc']]
-            
+            )[['datetime', 'user', 'pc', 'id']].copy()
             admin_first['log_type'] = 'logon'
             admin_first['anomaly_type'] = 'admin_first_time_pc_access'
             admin_first['detail'] = 'Admin first-time PC access'
@@ -557,89 +557,132 @@ class emp_data_classifier:
     
     def analyze(self):
         """Run complete analysis and return results DataFrame."""
-        # Load and preprocess all data
-        self.load_and_preprocess_data()
-        
-        # Detect all types of anomalies
-        logon_anoms = self.detect_logon_anomalies()
-        baseline_anoms, session_bounds = self.build_session_baselines()
-        ldap_anoms = self.detect_ldap_anomalies(session_bounds)
-        device_anoms = self.detect_device_anomalies()
-        http_anoms = self.detect_http_anomalies(session_bounds)
-        shared_pc_anoms = self.detect_shared_pc_anomalies()
-        admin_anoms = self.detect_admin_anomalies()
-        
-        # Combine all anomalies
-        all_anoms = (
-            logon_anoms + baseline_anoms + ldap_anoms + 
-            device_anoms + http_anoms + shared_pc_anoms + admin_anoms
-        )
-        
-        # Create final DataFrame
-        if all_anoms:
-            result_df = pd.concat(all_anoms, ignore_index=True, sort=False)
-            
-            # Ensure consistent columns
-            keep_cols = ['datetime', 'user', 'pc', 'log_type', 'anomaly_type', 'detail', 'log_id']
-            for c in keep_cols:
-                if c not in result_df.columns:
-                    result_df[c] = None
-            
-            result_df = result_df[keep_cols]
-            result_df = result_df.sort_values('datetime').reset_index(drop=True)
-            
-            # Match back to original data to get log_ids
-            result_df['log_id'] = None
-            
-            # For logon events
-            logon_mask = result_df['log_type'] == 'logon'
-            if logon_mask.any():
-                logon_matches = result_df[logon_mask].merge(
-                    self.logon[['datetime', 'user', 'pc', 'log_id']],
-                    on=['datetime', 'user', 'pc'],
-                    how='left'
-                )
-                result_df.loc[logon_mask, 'log_id'] = logon_matches['log_id']
-            
-            # For device events
-            device_mask = result_df['log_type'] == 'device'
-            if device_mask.any():
-                device_matches = result_df[device_mask].merge(
-                    self.device[['datetime', 'user', 'pc', 'log_id']],
-                    on=['datetime', 'user', 'pc'],
-                    how='left'
-                )
-                result_df.loc[device_mask, 'log_id'] = device_matches['log_id']
-            
-            # For HTTP events
-            http_mask = result_df['log_type'] == 'http'
-            if http_mask.any():
-                http_matches = result_df[http_mask].merge(
-                    self.http[['datetime', 'user', 'pc', 'log_id']],
-                    on=['datetime', 'user', 'pc'],
-                    how='left'
-                )
-                result_df.loc[http_mask, 'log_id'] = http_matches['log_id']
+        print("Starting analysis...")
 
-            # Create the output format with log_type and log details
-            output_df = pd.DataFrame({
-                'log_type': result_df['log_type'],
-                'log_id': result_df['log_id'],
-                'is_threat': True,
-                'log': result_df.to_dict(orient='records')
-            })
-        else:
-            output_df = pd.DataFrame(columns=[
-                'log_type', 'log_id', 'is_threat', 'log'
-            ])
+        try:
+            # Load and preprocess all data
+            print("Starting data preprocessing...")
+            self.load_and_preprocess_data()
+            print("Data preprocessing completed")
+            
+            print("Starting anomaly detection...")
+            # Detect all types of anomalies
+            logon_anoms = self.detect_logon_anomalies() or []
+            print(f"Found {len(logon_anoms)} logon anomalies")
+            
+            baseline_anoms, session_bounds = self.build_session_baselines()
+            baseline_anoms = baseline_anoms or []
+            print(f"Found {len(baseline_anoms)} baseline anomalies")
+            
+            ldap_anoms = self.detect_ldap_anomalies(session_bounds) or []
+            print(f"Found {len(ldap_anoms)} LDAP anomalies")
+            
+            device_anoms = self.detect_device_anomalies() or []
+            print(f"Found {len(device_anoms)} device anomalies")
+            
+            http_anoms = self.detect_http_anomalies(session_bounds) or []
+            print(f"Found {len(http_anoms)} HTTP anomalies")
+            
+            shared_pc_anoms = self.detect_shared_pc_anomalies() or []
+            print(f"Found {len(shared_pc_anoms)} shared PC anomalies")
+            
+            admin_anoms = self.detect_admin_anomalies() or []
+            print(f"Found {len(admin_anoms)} admin anomalies")
+            
+            # Combine all anomalies
+            all_anoms = (
+                logon_anoms + baseline_anoms + ldap_anoms + 
+                device_anoms + http_anoms + shared_pc_anoms + admin_anoms
+            )
+            
+            print(f"Total anomalies found: {len(all_anoms)}")
+            
+            # Create final DataFrame
+            if all_anoms:
+                result_df = pd.concat(all_anoms, ignore_index=True, sort=False)
+                
+                # Ensure consistent columns
+                keep_cols = ['datetime', 'user', 'pc', 'log_type', 'anomaly_type', 'detail', 'id']
+                for c in keep_cols:
+                    if c not in result_df.columns:
+                        result_df[c] = None
+                
+                result_df = result_df[keep_cols]
+                result_df = result_df.sort_values('datetime').reset_index(drop=True)
+                
+                # Fill any remaining NaN values in id column
+                result_df['id'] = result_df['id'].fillna(-1)
+                
+                # Create the output format with log_type and log details
+                correlation_input = pd.DataFrame({
+                    'log_type': result_df['log_type'],
+                    'id': result_df['id'].astype(int),  # Ensure integer type
+                    'is_threat': True,
+                    'anomaly_types': result_df['anomaly_type'],
+                    'source_type': result_df['log_type'],
+                    'datetime': result_df['datetime'],  
+                    'user': result_df['user'],
+                    'log': result_df.apply(lambda x: {
+                        'datetime': x['datetime'],
+                        'user': x['user'], 
+                        'pc': x['pc'],
+                        'log_type': x['log_type'],
+                        'anomaly_type': x['anomaly_type'],
+                        'detail': x['detail'],
+                        'id': int(x['id'])  # Ensure integer type
+                    }, axis=1).tolist()
+                })
 
-        print("Reached output!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
-        corr_engine = CorrelationEngine()
-        threat_engine = ThreatEngine()
-        correlated_df = corr_engine.correlate(output_df)
-        output_df = threat_engine.assign_threat_level(output_df)
-        
-        return output_df,correlated_df
+                output_df = pd.DataFrame({
+                    'log_type': result_df['log_type'],
+                    'log_id': result_df['id'].astype(int),  # Ensure integer type
+                    'is_threat': True,
+                    'log': result_df.apply(lambda x: {
+                        'datetime': x['datetime'],
+                        'user': x['user'], 
+                        'pc': x['pc'],
+                        'log_type': x['log_type'],
+                        'anomaly_type': x['anomaly_type'],
+                        'detail': x['detail'],
+                        'id': int(x['id'])  # Ensure integer type
+                    }, axis=1).tolist()
+                })
+            else:
+                print("No anomalies detected")
+                correlation_input = pd.DataFrame(columns=[
+                    'log_type', 'id', 'is_threat', 'anomaly_types', 
+                    'source_type', 'datetime', 'user', 'log'
+                ])
+
+            print("Starting correlation and threat analysis...")
+            try:
+                corr_engine = CorrelationEngine()
+                # Calculate the time window (before ML classification)
+                try:
+                    time_window = corr_engine.calculate_time_window([self.logon, self.device, self.http])
+                    print(f"Calculated time window: {time_window} minutes")
+                except Exception as e:
+                    print(f"Error calculating time window: {e}")
+
+                threat_engine = ThreatEngine()
+                
+                print("Running correlation engine...")
+                correlated_df = corr_engine.correlate(correlation_input)
+                
+                print("Running threat engine...")
+                correlation_input = threat_engine.assign_threat_level(correlation_input)
+                
+                print("Analysis completed successfully")
+                return output_df, correlated_df
+                
+            except Exception as e:
+                print(f"Error in correlation/threat analysis: {str(e)}")
+                # Return the basic output if correlation/threat analysis fails
+                return output_df, pd.DataFrame()
+                
+        except Exception as e:
+            print(f"Error in analysis process: {str(e)}")
+            raise
 
 # ----------------------
 # Main execution

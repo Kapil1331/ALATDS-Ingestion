@@ -56,6 +56,33 @@ def create_result_tables():
     )
     """)
 
+    # Employee Analysis Results table (for anomalies)
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS emp_analysis_results (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        log_type TEXT NOT NULL,
+        log_id INTEGER NOT NULL,
+        is_threat INTEGER DEFAULT 0,
+        log TEXT
+    )
+    """)
+
+    # Employee Activity Correlations table
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS emp_activity_correlations (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        primary_event TEXT NOT NULL,
+        primary_timestamp TEXT,
+        user TEXT NOT NULL,
+        related_events TEXT,
+        time_window_mins REAL,
+        analysis_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        
+        -- Indexes for faster querying
+        CONSTRAINT idx_user_time UNIQUE (user, primary_timestamp)
+    )
+    """)
+
     conn.commit()
     conn.close()
 
@@ -426,6 +453,109 @@ def insert_network_predictions_bulk(logs: list[dict]):
         conn.commit()
     except Exception as e:
         print(f"Error inserting network predictions: {str(e)}")
+        raise
+    finally:
+        conn.close()
+
+def json_serial(obj):
+    """JSON serializer for objects not serializable by default json code"""
+    if isinstance(obj, (pd.Timestamp, pd._libs.tslibs.timestamps.Timestamp)):
+        return obj.isoformat()
+    if isinstance(obj, (pd.Series, pd.DataFrame)):
+        return obj.to_dict()
+    if hasattr(obj, 'to_dict'):
+        return obj.to_dict()
+    if hasattr(obj, 'isoformat'):  # For datetime objects
+        return obj.isoformat()
+    raise TypeError(f"Type {type(obj)} not serializable")
+
+def insert_emp_analysis_results_bulk(results_df: pd.DataFrame):
+    conn = get_results_connection()
+    cursor = conn.cursor()
+    import os
+    print("Using results DB file:", os.path.abspath(RESULTS_FILE))
+
+    try:
+        # Debug: Print the DataFrame structure
+        print("DataFrame columns:", results_df.columns.tolist())
+        print("First row sample:", results_df.iloc[0].to_dict())
+        
+        # Convert DataFrame to list of dictionaries
+        results = results_df.to_dict('records')
+        
+        # Prepare data for insertion
+        insert_data = []
+        for row in results:
+            try:
+                # Ensure the log dictionary has serializable datetime
+                if 'log' in row and 'datetime' in row['log']:
+                    row['log']['datetime'] = str(row['log']['datetime'])
+                
+                insert_data.append((
+                    row.get('log_type'),
+                    int(row.get('log_id')),  # Using log_id instead of id
+                    1 if row.get('is_threat') else 0,
+                    json.dumps(row.get('log'), default=str)  # Use default=str for safety
+                ))
+            except Exception as row_error:
+                print(f"Error processing row: {row_error}")
+                print("Problematic row:", row)
+                raise
+        
+        # Debug: Print the SQL that will be executed
+        print(f"Preparing to insert {len(insert_data)} records")
+        
+        # Execute the insertion
+        cursor.executemany("""
+            INSERT INTO emp_analysis_results (
+                log_type, log_id, is_threat, log
+            )
+            VALUES (?, ?, ?, ?)
+        """, insert_data)
+        
+        conn.commit()
+        print(f"Successfully inserted {len(insert_data)} records")
+        cursor.execute("SELECT COUNT(*) FROM emp_analysis_results")
+        print("Row count immediately after insert:", cursor.fetchone()[0])
+        
+    except Exception as e:
+        conn.rollback()
+        print(f"Error inserting employee analysis results: {str(e)}")
+        # Get more detailed error information
+        try:
+            cursor.execute("PRAGMA table_info(emp_analysis_results)")
+            print("Current table schema:", cursor.fetchall())
+        except:
+            pass
+        raise
+    finally:
+        conn.close()
+
+def insert_emp_activity_correlations_bulk(correlations_df: pd.DataFrame):
+    conn = get_results_connection()
+    cursor = conn.cursor()
+    try:
+        # Convert DataFrame to list of dictionaries
+        correlations = correlations_df.to_dict('records')
+        cursor.executemany("""
+            INSERT INTO emp_activity_correlations (
+                primary_event, primary_timestamp, user,
+                related_events, time_window_mins
+            )
+            VALUES (?, ?, ?, ?, ?)
+        """, [
+            (
+                row.get("primary_event"),
+                row.get("primary_timestamp"),
+                row.get("user"),
+                json.dumps(row.get("related_events"), default=json_serial),
+                row.get("time_window_mins")
+            )
+            for row in correlations
+        ])
+        conn.commit()
+    except Exception as e:
+        print(f"Error inserting employee activity correlations: {str(e)}")
         raise
     finally:
         conn.close()

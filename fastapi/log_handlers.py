@@ -1,13 +1,19 @@
+import os
+import sys
+
+# Add the parent directory to Python path to make ML module accessible
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from sqlite_functions import insert_device_log, insert_http_log, insert_logon_log
 from sqlite_functions import insert_device_log_bulk, insert_http_log_bulk, insert_logon_log_bulk, insert_all_datas_f_bulk, insert_netflow_day_02_bulk, insert_wls_day_02_bulk
-from sqlite_functions import insert_wsl_predictions_bulk
+from sqlite_functions import insert_wsl_predictions_bulk, fetch_logs, insert_emp_analysis_results_bulk, insert_emp_activity_correlations_bulk
 
 from ML.emp_data_classification.emp_data_analyzer import emp_data_classifier
 from ML.wsl_classification.wsl_classifier import wsl_classifier
 import time
 import pandas as pd
 
-BATCH_SIZE = 10
+BATCH_SIZE = 100
 
 device_log_count = 0
 http_log_count = 0
@@ -35,21 +41,56 @@ if wsl_classifier.model is None:
 
 def check_threshold_for_emp(device_log_count, http_log_count, logon_log_count):
     print("111111111111111111111111111111", device_log_count, http_log_count, logon_log_count)
-    if(device_log_count == BATCH_SIZE and
-       http_log_count == BATCH_SIZE and
-       logon_log_count == BATCH_SIZE):
+    if(device_log_count >= BATCH_SIZE and
+       http_log_count >= BATCH_SIZE and
+       logon_log_count >= BATCH_SIZE):
         # call ml function
         print("OOOOOOOOOOOOOOOOOOOOOOOOOO")
         # Convert log buffers to DataFrames
+
+        logon_log_buffer = fetch_logs("logon", BATCH_SIZE)
+        device_log_buffer = fetch_logs("device", BATCH_SIZE)
+        http_log_buffer = fetch_logs("http" , BATCH_SIZE)
+
         logon_df = pd.DataFrame(logon_log_buffer)
         device_df = pd.DataFrame(device_log_buffer)
         http_df = pd.DataFrame(http_log_buffer)
         
+        # print(logon_df.head())
+        # print(device_df.head())
+        # print(http_df.head())
+        
         emp_data_obj = emp_data_classifier(logon_df, device_df, http_df)
         result, correlation = emp_data_obj.analyze()
-        # returned from ml function
+        print("BEORE FORMAT!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+
+        # Debug output
+        print("Formatted results to insert:")
         print(result.head())
-        print(correlation.head())
+        print("\nData types:")
+        print(result.dtypes)
+        print(correlation.dtypes)
+        try:
+            print("Attempting to insert results...")
+            insert_emp_analysis_results_bulk(result)
+            
+            if correlation is not None and not correlation.empty:
+                print("Attempting to insert correlations...")
+                print("Correlations DF sample:", correlation.head().to_dict('records'))
+                insert_emp_activity_correlations_bulk(correlation)
+            
+            print("Employee analysis results and correlations stored successfully")
+        except Exception as e:
+            print(f"Error storing results: {str(e)}")
+            # Add more detailed error information
+            if hasattr(e, 'sqlite_error'):
+                print(f"SQLite error: {e.sqlite_error}")
+            raise
+
+        print(result.head())
+        # returned from ml function
+        # print(result.head())
+        # print(correlation.head())
         device_log_count = 0
         http_log_count = 0
         logon_log_count = 0
@@ -68,7 +109,7 @@ def handle_device_log(row: dict):
     device_log_count += 1
     device_log_buffer.append(row)
 
-    if(device_log_count == BATCH_SIZE):
+    if(device_log_count >= BATCH_SIZE):
         # send to ml model
         check_threshold_for_emp(device_log_count, http_log_count, logon_log_count)
         # return from ml
@@ -82,7 +123,7 @@ def handle_http_log(row: dict):
     global logon_log_count
     http_log_count += 1
     http_log_buffer.append(row)
-    if(http_log_count == BATCH_SIZE):
+    if(http_log_count >= BATCH_SIZE):
         # send to ml model
         check_threshold_for_emp(device_log_count, http_log_count, logon_log_count)
         # return from ml
@@ -97,7 +138,7 @@ def handle_logon_log(row: dict):
     global logon_log_count
     logon_log_count += 1
     logon_log_buffer.append(row)
-    if(logon_log_count == BATCH_SIZE):
+    if(logon_log_count >= BATCH_SIZE):
         # send to ml model
         check_threshold_for_emp(device_log_count, http_log_count, logon_log_count)
         # return from ml
